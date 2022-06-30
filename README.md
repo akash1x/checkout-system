@@ -2,16 +2,24 @@
 ## Command
 
 Note: Following command should be run 
-
 ```bash
-  npx ts-node main.ts
+  npm i
 ```
-
+```bash
+  npm test
+```
+```bash
+  npm start
+```
 
 
 ## Description
 
-  **npx ts-node main.ts** : to run the main file.
+  **npm start** : to run the main file.
+
+  **npm test** : to run the test cases.
+
+  **npm i** : to install the dependencies.
 
   **Note**
 
