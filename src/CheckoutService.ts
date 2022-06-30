@@ -1,104 +1,104 @@
-import {Product, Offer} from './types'
+import {Product, Offer,BuyXforYItem,BulkDiscountOnXItem} from './types'
 import {ProductService} from './ProductService'
-
-
+import { PriceMappingService } from './PriceMappingService';
+import { PriceMapping } from './types/PriceMapping';
 
 export class CheckoutService{
     productService : ProductService;
-    skuList : string[];
+    priceMappingService: PriceMappingService
+    skuMap:Map<string,number>;
+    pricingRules: Offer[];
+    cartTotal:number;
 
-    constructor(productService: ProductService){
-        this.productService= productService;
-        this.skuList=[];
+    constructor( pricingRules:Offer[]){
+        this.productService= ProductService.getInstance();
+        this.priceMappingService= PriceMappingService.getInstance();
+        this.pricingRules=pricingRules;
+        this.skuMap=new Map<string,number>();
+        this.cartTotal=0;
     }
 
     scan(sku: string): void{
-        this.skuList.push(sku);
+        if(this.skuMap.has(sku)){
+            let skuFreq:number= <number>this.skuMap.get(sku);
+            this.skuMap.set(sku,skuFreq+1);
+        }else{
+            this.skuMap.set(sku,1);
+        }
     }
 
     total(): number{
-        let products : Product[]=this.productService.getProducts();
-        let total:number=0;
-        
-        for(let i=0;i<this.skuList.length;i++){
-            for(let j=0;j<products.length;j++){
-                if(this.skuList[i]==products[j].sku){
-                    total+=products[j].price;
+        let productsPricings : PriceMapping[]=this.priceMappingService.getProductsPricings();
+ 
+        for (let sku of this.skuMap.entries()) {
+            for(let j=0;j<productsPricings.length;j++){
+                if(sku[0]==productsPricings[j].sku){
+                    this.cartTotal+=productsPricings[j].price*sku[1];
                 }
             }
         }
-        let offer:Offer=this.checkForOffers();
-
-        if(offer.isAtvOfferValid|| offer.isIpdOfferValid){
-           total= this.adjustTotal(total,offer,products);
-        }
-       return total;
+        this.checkForOffers();
+        return this.getTotal();
     }
-    
-
-    checkForOffers():Offer{
-        let appleTvCount:number=0;
-        let superIpadCount:number=0;
-        let offers:Offer={
-            atvUnits:0,
-            ipdUnits:0,
-            ipdOfferPrice:0,
-            isAtvOfferValid:false,
-            isIpdOfferValid:false,
-        };
-       
-        for(let i=0;i<this.skuList.length;i++){
-            if(this.skuList[i]==="atv"){
-                appleTvCount++;
-            }
-            if(this.skuList[i]==="ipd"){
-                superIpadCount++;
-            }
-        }
-        //Offer 1
-        if(appleTvCount>=3){
-            offers.isAtvOfferValid=true;
-            offers.atvUnits=Math.floor(appleTvCount/3);
-        }
-        //Offer 2
-        if(superIpadCount>4){
-            offers.ipdUnits=superIpadCount;
-            offers.ipdOfferPrice=499.99;
-            offers.isIpdOfferValid=true;
-        }
-        return offers;
+    getTotal():number{
+        return this.cartTotal;
     }
 
-  
+    checkForOffers():void{
+        if(this.pricingRules.length>0){
+            for(let i=0;i<this.pricingRules.length;i++){
+                this.adjustTotal(this.pricingRules[i]);
+            }
+        }
+    }
 
-    adjustTotal(total:number,offer:Offer,products:Product[]): number{
-        let atvCost:number=0;
-        let ipdCost:number=0;
-        let diff:number=0;
-        if(offer.isAtvOfferValid){
-            for(let i=0;i<products.length;i++){
-                if(products[i].sku=="atv"){
-                    atvCost=products[i].price;
+    adjustTotal(offer:Offer):void{
+        //Adjust cost based on the offer
+        let productsPricings : PriceMapping[]=this.priceMappingService.getProductsPricings();
+        if(offer.offerName==="BuyXforYItem"){
+            const offerDetails :BuyXforYItem= <BuyXforYItem>offer;
+            let skuCount=0;
+            for(let sku of this.skuMap.entries()){
+                if(offerDetails.sku===sku[0]){
+                    skuCount=sku[1];
                     break;
                 }
             }
-
-            total-= offer.atvUnits*atvCost;
-        }
-       
-        if(offer.isIpdOfferValid){
-            for(let i=0;i<products.length;i++){
-                if(products[i].sku=="ipd"){
-                    ipdCost=products[i].price;
+            let skuPrice=0;
+            for(let i=0;i<productsPricings.length;i++){
+                if(offerDetails.sku===productsPricings[i].sku){
+                    skuPrice=productsPricings[i].price;
                     break;
                 }
             }
-            diff= ipdCost-offer.ipdOfferPrice;
-            total-= offer.ipdUnits*diff;
-          
+            if(skuCount>=offerDetails.x){
+                let a = Math.floor(skuCount/offerDetails.x);
+                let b = offerDetails.x-offerDetails.y;
+                this.cartTotal-=skuPrice*a*b;
+            }
         }
-        
-        return total;
+
+        if(offer.offerName==="BulkDiscountOnXItem"){
+            const offerDetails :BulkDiscountOnXItem= <BulkDiscountOnXItem>offer;
+            let skuCount=0;
+            for(let sku of this.skuMap.entries()){
+                if(offerDetails.sku===sku[0]){
+                    skuCount=sku[1];
+                    break;
+                }
+            }
+           
+            let skuPrice=0;
+            for(let i=0;i<productsPricings.length;i++){
+                if(offerDetails.sku===productsPricings[i].sku){
+                    skuPrice=productsPricings[i].price;
+                    break;
+                }
+            }
+            if(skuCount>=offerDetails.x){
+                this.cartTotal-=skuCount*offerDetails.discount;
+            }
+        }
     }
    
 }
