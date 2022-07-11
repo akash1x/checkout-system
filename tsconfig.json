@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./build",
+    "target": "es2020",
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+  "exclude": ["tests"]
+}
